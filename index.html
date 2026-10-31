@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniPrice Engine AI - Precificação Dinâmica & Negociação Automática</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            900: '#064e3b'
+                        },
+                        darkbg: '#0b0f19',
+                        cardbg: '#111827',
+                        borderbg: '#1f2937'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #080c14;
+            color: #f3f4f6;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #080c14; }
+        ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #374151; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; color: black !important; }
+            .card-box { border: 1px solid #ccc !important; background: white !important; color: black !important; box-shadow: none !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-brand-500 selection:text-white">
+
+    <!-- HEADER / NAVBAR -->
+    <header class="bg-cardbg border-b border-borderbg sticky top-0 z-50 backdrop-blur-md bg-opacity-90 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-gradient-to-tr from-brand-600 to-emerald-400 rounded-xl text-white shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-calculator text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        OMNI<span class="text-brand-500">PRICE</span> <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-brand-400 border border-brand-500/30">AI UNIVERSAL</span>
+                    </h1>
+                    <p class="text-xs text-gray-400">Sistema Inteligente de Precificação Dinâmica & Acordos Automáticos</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 text-xs sm:text-sm">
+                <button onclick="toggleTheme()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition">
+                    <i class="fa-solid fa-moon me-1" id="theme-icon"></i> <span id="theme-text">Modo Escuro</span>
+                </button>
+                <button onclick="exportProposalPDF()" class="px-3.5 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-medium transition shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-pdf"></i> Imprimir / PDF
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTAINER PRINCIPAL -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- COLUNA DA ESQUERDA: COLETOR DE DADOS EXTENSIVO (INPUTS) -->
+        <section class="lg:col-span-6 space-y-6 no-print">
+
+            <!-- CARD 1: DADOS DO PRODUTO / SERVIÇO -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <h2 class="font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-box text-brand-500"></i> 1. Produto / Serviço & Custos
+                    </h2>
+                    <span class="text-xs text-gray-400">Base Financeira</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Nome do Item ou Serviço</label>
+                        <input type="text" id="itemName" value="Consultoria em Software SaaS / Produto Industrial" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Custo Unitário Base (R$)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-xs text-gray-500">R$</span>
+                            <input type="number" id="baseCost" value="150.00" step="0.01" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Preço Tabela Sugerido (R$)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-xs text-gray-500">R$</span>
+                            <input type="number" id="listPrice" value="350.00" step="0.01" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Impostos Operacionais (%)</label>
+                        <input type="number" id="taxRate" value="12.0" step="0.1" min="0" max="100" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Comissão de Vendas (%)</label>
+                        <input type="number" id="commissionRate" value="5.0" step="0.1" min="0" max="100" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2: ESTOQUE, DEMANDA & MERCADO -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <h2 class="font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-brand-500"></i> 2. Mercado, Estoque & Sazonalidade
+                    </h2>
+                    <span class="text-xs text-gray-400">Variáveis Externas</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Pressão de Demanda</label>
+                        <select id="demandLevel" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="low">Baixa Procura (-8%)</option>
+                            <option value="normal" selected>Normal / Estável</option>
+                            <option value="high">Alta Demanda (+7%)</option>
+                            <option value="urgent">Escassez / Urgente (+15%)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Nível de Estoque</label>
+                        <select id="stockStatus" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="excess">Excesso (Queima -10%)</option>
+                            <option value="normal" selected>Adequado / Equilibrado</option>
+                            <option value="low">Crítico / Baixo (+8%)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Fator Época / Sazonal</label>
+                        <select id="seasonality" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="offpeak">Fora de Época (-5%)</option>
+                            <option value="regular" selected>Regular</option>
+                            <option value="peak">Alta Temporada (+10%)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 3: PERFIL DO CLIENTE & RISCO -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <h2 class="font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-user-shield text-brand-500"></i> 3. Perfil do Cliente & Risco Financeiro
+                    </h2>
+                    <span class="text-xs text-gray-400">Score de Confiança</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Categoria do Cliente</label>
+                        <select id="clientTier" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="new">Novo Cliente (Padrão)</option>
+                            <option value="recurring">Recorrente (-3%)</option>
+                            <option value="vip" selected>VIP / Key Account (-7%)</option>
+                            <option value="strategic">Parceiro Estratégico (-12%)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Score de Crédito</label>
+                        <select id="creditRisk" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="low" selected>Excelente / Risco Baixo (0%)</option>
+                            <option value="medium">Médio Risco (+4% Proteção)</option>
+                            <option value="high">Alto Risco (+10% Proteção)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Histórico de Compras (R$)</label>
+                        <input type="number" id="historicalLTV" value="120000" step="1000" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 4: CONDIÇÕES DA NEGOCIAÇÃO ATUAL -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <h2 class="font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-handshake text-brand-500"></i> 4. Condições Comerciais da Venda
+                    </h2>
+                    <span class="text-xs text-gray-400">Termos Atuais</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Quantidade Desejada</label>
+                        <input type="number" id="orderQty" value="50" min="1" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white mono focus:outline-none focus:border-brand-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Forma de Pagamento</label>
+                        <select id="paymentTerm" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="cash" selected>À Vista / PIX (-5% Cash Discount)</option>
+                            <option value="30d">Boleto 30 Dias (0%)</option>
+                            <option value="60d">Faturado 60+ Dias (+4%)</option>
+                            <option value="card_split">Cartão Parcelado 10x (+6%)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Fidelidade / Contrato (Meses)</label>
+                        <select id="contractTerm" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="0">Pontual / Sem Contrato</option>
+                            <option value="6">6 Meses (-4%)</option>
+                            <option value="12" selected>12 Meses (-8%)</option>
+                            <option value="24">24+ Meses (-15%)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Modalidade Frete / Logística</label>
+                        <select id="freightTerm" class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                            <option value="pickup" selected>Retirada / FOB (Cliente Paga)</option>
+                            <option value="cif_standard">Entrega Padrão / CIF (+3%)</option>
+                            <option value="cif_express">Entrega Expressa VIP (+7%)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- COLUNA DA DIREITA: RESULTADOS AO VIVO, PAINEL DE ACORDOS E RELATÓRIO -->
+        <section class="lg:col-span-6 space-y-6">
+
+            <!-- DISPLAY PRINCIPAL DE PREÇO E MARGEM -->
+            <div id="priceCard" class="bg-cardbg border border-borderbg rounded-2xl p-6 shadow-xl relative overflow-hidden transition-all duration-300">
+                <div class="absolute -right-12 -top-12 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Preço Calculado por Unidade</span>
+                    <span id="marginBadge" class="px-3 py-1 text-xs font-bold rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/50">
+                        Margem Segura: 35.2%
+                    </span>
+                </div>
+
+                <div class="flex items-baseline justify-between flex-wrap gap-2">
+                    <div>
+                        <div class="text-3xl sm:text-4xl font-extrabold text-white mono" id="calcUnitPrice">R$ 298.50</div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            Preço Tabela Original: <span class="line-through mono" id="calcOriginalList">R$ 350.00</span>
+                            <span class="text-brand-400 font-semibold ms-1" id="calcTotalDiscountPercent">(-14.7%)</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400">Valor Total do Pedido</div>
+                        <div class="text-xl sm:text-2xl font-bold text-brand-400 mono" id="calcTotalOrderPrice">R$ 14.925,00</div>
+                    </div>
+                </div>
+
+                <!-- METRICAS DETALHADAS -->
+                <div class="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-borderbg text-center">
+                    <div class="bg-gray-900/60 p-2.5 rounded-xl border border-gray-800">
+                        <span class="block text-[10px] text-gray-400 uppercase font-semibold">Lucro Líquido / Un</span>
+                        <span class="text-sm font-bold text-white mono" id="calcNetProfit">R$ 95.40</span>
+                    </div>
+                    <div class="bg-gray-900/60 p-2.5 rounded-xl border border-gray-800">
+                        <span class="block text-[10px] text-gray-400 uppercase font-semibold">Lucro Total Pedido</span>
+                        <span class="text-sm font-bold text-emerald-400 mono" id="calcTotalProfit">R$ 4.770,00</span>
+                    </div>
+                    <div class="bg-gray-900/60 p-2.5 rounded-xl border border-gray-800">
+                        <span class="block text-[10px] text-gray-400 uppercase font-semibold">Break-Even Mínimo</span>
+                        <span class="text-sm font-bold text-amber-400 mono" id="calcBreakEven">R$ 203.10</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANÁLISE GRÁFICA DE COMPOSIÇÃO DE PREÇO -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4 no-print">
+                <h3 class="text-sm font-semibold text-white flex items-center justify-between">
+                    <span><i class="fa-solid fa-chart-pie text-brand-500 me-2"></i> Decomposição do Preço Final</span>
+                    <span class="text-xs text-gray-400 font-normal">Custo vs Impostos vs Margem</span>
+                </h3>
+                <div class="h-48 relative flex justify-center items-center">
+                    <canvas id="priceBreakdownChart"></canvas>
+                </div>
+            </div>
+
+            <!-- MOTOR DE NEGOCIAÇÃO E SUGESTÃO DE ACORDOS AUTOMÁTICOS (SEM INTERVENÇÃO HUMANA) -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-4 no-print">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <div>
+                        <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Sugestões de Acordos Inteligentes (AI Deal Engine)
+                        </h3>
+                        <p class="text-xs text-gray-400">Alternativas para fechar a venda sem depender de aprovações manuais</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="dealsContainer">
+                    <!-- Opções geradas via JS -->
+                </div>
+            </div>
+
+            <!-- AÇÕES E REGISTRO DE TRANSAÇÃO -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-3 no-print">
+                <button onclick="saveTransaction()" class="flex-1 bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg transition text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-circle-check"></i> Registrar Venda no Histórico
+                </button>
+                <button onclick="clearHistory()" class="bg-gray-800 hover:bg-red-950/50 hover:text-red-400 text-gray-400 border border-gray-700 py-2.5 px-4 rounded-xl transition text-xs font-medium">
+                    Limpar Dados
+                </button>
+            </div>
+
+            <!-- HISTÓRICO DE NEGOCIAÇÕES REGISTRADAS -->
+            <div class="bg-cardbg border border-borderbg rounded-2xl p-5 shadow-sm space-y-3 no-print">
+                <div class="flex items-center justify-between border-b border-borderbg pb-3">
+                    <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-brand-500"></i> Histórico de Vendas Concluídas
+                    </h3>
+                    <span class="text-xs text-gray-400" id="historyCount">0 registros</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-gray-300">
+                        <thead class="bg-gray-900/80 text-gray-400 uppercase text-[10px] font-bold">
+                            <tr>
+                                <th class="p-2.5">Data/Item</th>
+                                <th class="p-2.5">Qtd</th>
+                                <th class="p-2.5">Preço Un.</th>
+                                <th class="p-2.5">Total</th>
+                                <th class="p-2.5">Margem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="divide-y divide-gray-800">
+                            <tr>
+                                <td colspan="5" class="p-4 text-center text-gray-500">Nenhuma venda registrada até o momento.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- PROPOSTA COMERCIAL IMPRESSA / EXPORTÁVEL (PRINT ONLY) -->
+    <div class="hidden print-only p-8 max-w-4xl mx-auto space-y-6">
+        <div class="border-b border-gray-300 pb-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">PROPOSTA COMERCIAL DE VENDA</h1>
+                <p class="text-sm text-gray-600">Calculado via OmniPrice Engine AI System</p>
+            </div>
+            <div class="text-right text-sm text-gray-500">
+                <p>Data: <span id="printDate">--</span></p>
+                <p>Status: <span class="font-bold text-green-700">APROVADO / AUTOMÁTICO</span></p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div class="p-4 border rounded">
+                <h3 class="font-bold text-gray-700 mb-2">Resumo do Item</h3>
+                <p><strong>Item:</strong> <span id="printItemName">--</span></p>
+                <p><strong>Quantidade:</strong> <span id="printQty">--</span></p>
+                <p><strong>Condição de Pagamento:</strong> <span id="printPayment">--</span></p>
+            </div>
+            <div class="p-4 border rounded">
+                <h3 class="font-bold text-gray-700 mb-2">Termos e Frete</h3>
+                <p><strong>Contrato / Fidelidade:</strong> <span id="printContract">--</span></p>
+                <p><strong>Modalidade de Frete:</strong> <span id="printFreight">--</span></p>
+                <p><strong>Desconto Aplicado:</strong> <span id="printDiscount">--</span></p>
+            </div>
+        </div>
+
+        <div class="border rounded p-6 bg-gray-50 text-center">
+            <p class="text-sm text-gray-500 uppercase font-bold">Valor Total Final Aprovado</p>
+            <div class="text-4xl font-extrabold text-gray-900 my-2" id="printTotalValue">R$ 0,00</div>
+            <p class="text-xs text-gray-500">Preço Unitário Negociado: <span id="printUnitValue">R$ 0,00</span></p>
+        </div>
+
+        <div class="pt-12 grid grid-cols-2 gap-8 text-center text-xs text-gray-500">
+            <div class="border-t border-gray-400 pt-2">Assinatura do Vendedor / Sistema</div>
+            <div class="border-t border-gray-400 pt-2">Assinatura do Cliente / Aceite</div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-cardbg border-t border-borderbg py-4 px-6 text-center text-xs text-gray-500 no-print mt-8">
+        <p>OmniPrice AI © 2026 - Sistema Inteligente de Precificação Dinâmica. Funciona 100% Client-Side para GitHub Pages.</p>
+    </footer>
+
+    <!-- LOGICA JAVASCRIPT COMPLETA E AUTO-CONTIDA -->
+    <script>
+        // GLOBAL VARS & CHART INSTANCE
+        let priceChart = null;
+
+        // INICIALIZAÇÃO AO CARREGAR A PÁGINA
+        window.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            attachEventListeners();
+            calculatePricing();
+            renderHistory();
+        });
+
+        // ESCUTADORES DE EVENTOS DE INPUT
+        function attachEventListeners() {
+            const inputs = [
+                'itemName', 'baseCost', 'listPrice', 'taxRate', 'commissionRate',
+                'demandLevel', 'stockStatus', 'seasonality', 'clientTier',
+                'creditRisk', 'historicalLTV', 'orderQty', 'paymentTerm',
+                'contractTerm', 'freightTerm'
+            ];
+
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', calculatePricing);
+                    el.addEventListener('change', calculatePricing);
+                }
+            });
+        }
+
+        // MOTOR PRINCIPAL DE PRECIFICAÇÃO DINÂMICA
+        function calculatePricing() {
+            // 1. Obter Valores dos Inputs
+            const itemName = document.getElementById('itemName').value || 'Produto/Serviço';
+            const baseCost = parseFloat(document.getElementById('baseCost').value) || 0;
+            const listPrice = parseFloat(document.getElementById('listPrice').value) || 0;
+            const taxRate = (parseFloat(document.getElementById('taxRate').value) || 0) / 100;
+            const commissionRate = (parseFloat(document.getElementById('commissionRate').value) || 0) / 100;
+
+            const demandLevel = document.getElementById('demandLevel').value;
+            const stockStatus = document.getElementById('stockStatus').value;
+            const seasonality = document.getElementById('seasonality').value;
+
+            const clientTier = document.getElementById('clientTier').value;
+            const creditRisk = document.getElementById('creditRisk').value;
+            const historicalLTV = parseFloat(document.getElementById('historicalLTV').value) || 0;
+
+            const orderQty = parseInt(document.getElementById('orderQty').value) || 1;
+            const paymentTerm = document.getElementById('paymentTerm').value;
+            const contractTerm = document.getElementById('contractTerm').value;
+            const freightTerm = document.getElementById('freightTerm').value;
+
+            // 2. Cálculo dos Fatores de Ajuste (Porcentagens acumuladas)
+            let adjustmentPercent = 0;
+
+            // Demanda
+            if (demandLevel === 'low') adjustmentPercent -= 0.08;
+            if (demandLevel === 'high') adjustmentPercent += 0.07;
+            if (demandLevel === 'urgent') adjustmentPercent += 0.15;
+
+            // Estoque
+            if (stockStatus === 'excess') adjustmentPercent -= 0.10;
+            if (stockStatus === 'low') adjustmentPercent += 0.08;
+
+            // Sazonalidade
+            if (seasonality === 'offpeak') adjustmentPercent -= 0.05;
+            if (seasonality === 'peak') adjustmentPercent += 0.10;
+
+            // Categoria de Cliente
+            if (clientTier === 'recurring') adjustmentPercent -= 0.03;
+            if (clientTier === 'vip') adjustmentPercent -= 0.07;
+            if (clientTier === 'strategic') adjustmentPercent -= 0.12;
+
+            // Histórico (LTV Bonus)
+            if (historicalLTV > 50000 && historicalLTV <= 150000) adjustmentPercent -= 0.02;
+            if (historicalLTV > 150000) adjustmentPercent -= 0.05;
+
+            // Risco de Crédito (Proteção)
+            if (creditRisk === 'medium') adjustmentPercent += 0.04;
+            if (creditRisk === 'high') adjustmentPercent += 0.10;
+
+            // Desconto de Volume Tiers (Quantidade Escalonada)
+            let volumeDiscount = 0;
+            if (orderQty >= 10 && orderQty < 50) volumeDiscount = 0.05;
+            else if (orderQty >= 50 && orderQty < 100) volumeDiscount = 0.10;
+            else if (orderQty >= 100 && orderQty < 500) volumeDiscount = 0.15;
+            else if (orderQty >= 500) volumeDiscount = 0.22;
+            adjustmentPercent -= volumeDiscount;
+
+            // Condição de Pagamento
+            if (paymentTerm === 'cash') adjustmentPercent -= 0.05;
+            if (paymentTerm === '60d') adjustmentPercent += 0.04;
+            if (paymentTerm === 'card_split') adjustmentPercent += 0.06;
+
+            // Contrato de Fidelidade
+            if (contractTerm === '6') adjustmentPercent -= 0.04;
+            if (contractTerm === '12') adjustmentPercent -= 0.08;
+            if (contractTerm === '24') adjustmentPercent -= 0.15;
+
+            // Frete
+            if (freightTerm === 'cif_standard') adjustmentPercent += 0.03;
+            if (freightTerm === 'cif_express') adjustmentPercent += 0.07;
+
+            // 3. Preço Unitário Ajustado
+            let calculatedUnitPrice = listPrice * (1 + adjustmentPercent);
+
+            // Garantir que preço nunca fica abaixo do Custo Base + Taxas mínimas (Break-even + 5% segurança)
+            const breakEvenUnitPrice = baseCost / (1 - (taxRate + commissionRate));
+            const absoluteFloorPrice = breakEvenUnitPrice * 1.05;
+
+            if (calculatedUnitPrice < absoluteFloorPrice) {
+                calculatedUnitPrice = absoluteFloorPrice;
+            }
+
+            // Totais
+            const totalOrderPrice = calculatedUnitPrice * orderQty;
+            const totalTaxesAndCommissions = calculatedUnitPrice * (taxRate + commissionRate);
+            const netProfitPerUnit = calculatedUnitPrice - baseCost - totalTaxesAndCommissions;
+            const totalNetProfit = netProfitPerUnit * orderQty;
+            const netMarginPercent = (netProfitPerUnit / calculatedUnitPrice) * 100;
+
+            const totalDiscountPercent = ((listPrice - calculatedUnitPrice) / listPrice) * 100;
+
+            // 4. Atualizar UI
+            document.getElementById('calcUnitPrice').innerText = formatBRL(calculatedUnitPrice);
+            document.getElementById('calcOriginalList').innerText = formatBRL(listPrice);
+            document.getElementById('calcTotalOrderPrice').innerText = formatBRL(totalOrderPrice);
+
+            document.getElementById('calcNetProfit').innerText = formatBRL(netProfitPerUnit);
+            document.getElementById('calcTotalProfit').innerText = formatBRL(totalNetProfit);
+            document.getElementById('calcBreakEven').innerText = formatBRL(breakEvenUnitPrice);
+
+            const discountEl = document.getElementById('calcTotalDiscountPercent');
+            if (totalDiscountPercent >= 0) {
+                discountEl.innerText = `(-${totalDiscountPercent.toFixed(1)}%)`;
+                discountEl.className = "text-brand-400 font-semibold ms-1";
+            } else {
+                discountEl.innerText = `(+${Math.abs(totalDiscountPercent).toFixed(1)}% Surcharge)`;
+                discountEl.className = "text-amber-400 font-semibold ms-1";
+            }
+
+            // Atualizar Badge de Margem
+            const badge = document.getElementById('marginBadge');
+            const priceCard = document.getElementById('priceCard');
+
+            if (netMarginPercent >= 25) {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/50";
+                badge.innerHTML = `<i class="fa-solid fa-shield-halved me-1"></i> Margem Excelente: ${netMarginPercent.toFixed(1)}%`;
+                priceCard.style.borderColor = "#10b981";
+            } else if (netMarginPercent >= 10 && netMarginPercent < 25) {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-amber-950 text-amber-400 border border-amber-800/50";
+                badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> Margem Moderada: ${netMarginPercent.toFixed(1)}%`;
+                priceCard.style.borderColor = "#f59e0b";
+            } else {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-red-950 text-red-400 border border-red-800/50";
+                badge.innerHTML = `<i class="fa-solid fa-radiation me-1"></i> Margem Perigosa: ${netMarginPercent.toFixed(1)}%`;
+                priceCard.style.borderColor = "#ef4444";
+            }
+
+            // Atualizar Gráfico
+            updateChart(baseCost, totalTaxesAndCommissions, Math.max(0, netProfitPerUnit));
+
+            // Gerar Sugestões de Acordos Automatizados
+            generateDealSuggestions(listPrice, baseCost, breakEvenUnitPrice, orderQty);
+        }
+
+        // GERADOR DE ACORDOS AUTOMÁTICOS INTELIGENTES
+        function generateDealSuggestions(listPrice, baseCost, breakEven, qty) {
+            const container = document.getElementById('dealsContainer');
+            
+            // Opção 1: Fechamento Flash (À vista + Sem Frete)
+            const p1 = Math.max(breakEven * 1.10, listPrice * 0.78);
+            // Opção 2: Contrato Longo 24m (Desconto Máximo com Garantia)
+            const p2 = Math.max(breakEven * 1.15, listPrice * 0.82);
+            // Opção 3: Combo Volume (Comprar +30% de quantidade)
+            const p3 = Math.max(breakEven * 1.12, listPrice * 0.85);
+
+            container.innerHTML = `
+                <!-- Acordo 1 -->
+                <div class="bg-gray-900/90 border border-gray-800 hover:border-brand-500/50 p-3.5 rounded-xl transition cursor-pointer" onclick="applyDealOption(${p1}, 'cash', '0')">
+                    <div class="flex justify-between items-start mb-1.5">
+                        <span class="text-xs font-bold text-emerald-400">⚡ Acordo Liquidez Instantânea</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 mono font-bold">${formatBRL(p1)}/un</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400">Conceder 5% extra em troca de Pagamento à Vista via PIX e Retirada imediata.</p>
+                </div>
+
+                <!-- Acordo 2 -->
+                <div class="bg-gray-900/90 border border-gray-800 hover:border-brand-500/50 p-3.5 rounded-xl transition cursor-pointer" onclick="applyDealOption(${p2}, '30d', '24')">
+                    <div class="flex justify-between items-start mb-1.5">
+                        <span class="text-xs font-bold text-sky-400">📜 Acordo Fidelidade 24 Meses</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-sky-950 text-sky-400 mono font-bold">${formatBRL(p2)}/un</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400">Preço reduzido mediante assinatura de contrato de fornecimento por 2 anos.</p>
+                </div>
+
+                <!-- Acordo 3 -->
+                <div class="bg-gray-900/90 border border-gray-800 hover:border-brand-500/50 p-3.5 rounded-xl transition cursor-pointer" onclick="applyDealOption(${p3}, '30d', '12', ${Math.round(qty * 1.4)})">
+                    <div class="flex justify-between items-start mb-1.5">
+                        <span class="text-xs font-bold text-purple-400">📦 Acordo Upsell de Volume</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-purple-950 text-purple-400 mono font-bold">${formatBRL(p3)}/un</span>
+                    </div>
+                    <p class="text-[11px] text-gray-400">Aumentar pedido para ${Math.round(qty * 1.4)} un. para destravar o próximo Tier de desconto.</p>
+                </div>
+            `;
+        }
+
+        // APLICAR OPÇÃO DE ACORDO SUGERIDO
+        function applyDealOption(unitPrice, payTerm, contractMonths, newQty = null) {
+            document.getElementById('paymentTerm').value = payTerm;
+            document.getElementById('contractTerm').value = contractMonths;
+            if (newQty) {
+                document.getElementById('orderQty').value = newQty;
+            }
+            calculatePricing();
+        }
+
+        // CHART.JS INICIALIZAÇÃO E ATUALIZAÇÃO
+        function initChart() {
+            const ctx = document.getElementById('priceBreakdownChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Custo Base', 'Impostos & Comissões', 'Lucro Líquido'],
+                    datasets: [{
+                        data: [150, 40, 95],
+                        backgroundColor: ['#374151', '#f59e0b', '#10b981'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#9ca3af', font: { size: 11, family: 'Inter' } }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function updateChart(cost, taxes, profit) {
+            if (!priceChart) return;
+            priceChart.data.datasets[0].data = [cost, taxes, profit];
+            priceChart.update();
+        }
+
+        // REGISTRO DE HISTÓRICO VIA LOCALSTORAGE
+        function saveTransaction() {
+            const itemName = document.getElementById('itemName').value || 'Item';
+            const qty = parseInt(document.getElementById('orderQty').value) || 1;
+            const unitPrice = document.getElementById('calcUnitPrice').innerText;
+            const totalPrice = document.getElementById('calcTotalOrderPrice').innerText;
+            const margin = document.getElementById('marginBadge').innerText.replace('Margem Excelente: ', '').replace('Margem Moderada: ', '').replace('Margem Perigosa: ', '');
+
+            const record = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                itemName,
+                qty,
+                unitPrice,
+                totalPrice,
+                margin
+            };
+
+            const history = JSON.parse(localStorage.getItem('omniprice_history') || '[]');
+            history.unshift(record);
+            localStorage.setItem('omniprice_history', JSON.stringify(history));
+
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = JSON.parse(localStorage.getItem('omniprice_history') || '[]');
+            const tbody = document.getElementById('historyTableBody');
+            const countEl = document.getElementById('historyCount');
+
+            countEl.innerText = `${history.length} registro(s)`;
+
+            if (history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Nenhuma venda registrada até o momento.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = history.map(item => `
+                <tr class="hover:bg-gray-900/50 transition">
+                    <td class="p-2.5 font-medium text-white">
+                        <div>${escapeHtml(item.itemName)}</div>
+                        <div class="text-[10px] text-gray-500">${item.date}</div>
+                    </td>
+                    <td class="p-2.5 mono">${item.qty}</td>
+                    <td class="p-2.5 mono text-gray-300">${item.unitPrice}</td>
+                    <td class="p-2.5 mono text-brand-400 font-bold">${item.totalPrice}</td>
+                    <td class="p-2.5">
+                        <span class="px-2 py-0.5 text-[10px] rounded bg-gray-800 border border-gray-700 text-emerald-400 mono">${item.margin}</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function clearHistory() {
+            if (confirm("Deseja realmente limpar o histórico de vendas salvas?")) {
+                localStorage.removeItem('omniprice_history');
+                renderHistory();
+            }
+        }
+
+        // IMPRESSÃO / EXPORTAÇÃO EM PDF
+        function exportProposalPDF() {
+            // Preencher dados na view de impressão
+            document.getElementById('printDate').innerText = new Date().toLocaleDateString('pt-BR');
+            document.getElementById('printItemName').innerText = document.getElementById('itemName').value;
+            document.getElementById('printQty').innerText = document.getElementById('orderQty').value;
+            
+            const paySelect = document.getElementById('paymentTerm');
+            document.getElementById('printPayment').innerText = paySelect.options[paySelect.selectedIndex].text;
+
+            const contractSelect = document.getElementById('contractTerm');
+            document.getElementById('printContract').innerText = contractSelect.options[contractSelect.selectedIndex].text;
+
+            const freightSelect = document.getElementById('freightTerm');
+            document.getElementById('printFreight').innerText = freightSelect.options[freightSelect.selectedIndex].text;
+
+            document.getElementById('printDiscount').innerText = document.getElementById('calcTotalDiscountPercent').innerText;
+            document.getElementById('printTotalValue').innerText = document.getElementById('calcTotalOrderPrice').innerText;
+            document.getElementById('printUnitValue').innerText = document.getElementById('calcUnitPrice').innerText;
+
+            window.print();
+        }
+
+        // TEMA ESCURO / CLARO
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                themeIcon.className = 'fa-solid fa-sun me-1';
+                themeText.innerText = 'Modo Claro';
+                document.body.style.backgroundColor = '#f3f4f6';
+                document.body.style.color = '#1f2937';
+            } else {
+                html.classList.add('dark');
+                themeIcon.className = 'fa-solid fa-moon me-1';
+                themeText.innerText = 'Modo Escuro';
+                document.body.style.backgroundColor = '#080c14';
+                document.body.style.color = '#f3f4f6';
+            }
+        }
+
+        // UTILS
+        function formatBRL(value) {
+            return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
